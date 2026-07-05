@@ -2,6 +2,33 @@
 
 Keck3 est l'application Python de nouvelle génération pour l'acquisition et la transmission des données du banc de contrôle (D1118) directement vers Open Prod (ERP).
 
+## 🚀 Démarrage ultra-rapide
+
+### Windows
+```bash
+Double-clic sur start_ui.cmd
+# Automatique : crée l'env, installe dépendances, lance l'app
+```
+
+### Mac/Linux
+```bash
+./start_ui.sh
+# Automatique : crée l'env, installe dépendances, lance l'app
+```
+
+**C'est tout.** Une fenêtre s'ouvre, vous êtes prêt.
+
+## 📊 Interface graphique
+
+Interface native desktop ultra-simple :
+- ✓ Statut en temps réel (port série, Open Prod)
+- ✓ Statistiques (électrique, thermique, erreurs)
+- ✓ Historique des 20 derniers contrôles
+- ✓ Logs en direct
+- ✓ Configuration facile (bouton ⚙)
+
+→ Voir [UI_SIMPLE.md](UI_SIMPLE.md) pour les détails
+
 ## Architecture
 
 **Avant (Keck1 + KeckCapture):**
@@ -14,8 +41,9 @@ Keck3 est l'application Python de nouvelle génération pour l'acquisition et la
 
 - Lecture temps réel depuis le banc de contrôle (port série D1118)
 - Transmission des données de contrôle électrique et thermique
-- Impression **immédiate** vers imprimantes réseau (pas de dossier partagé)
+- Impression **immédiate** vers imprimantes réseau
 - Intégration native avec Open Prod
+- Interface graphique native (PySimpleGUI)
 - Logging complet et traçabilité
 - Gestion robuste des erreurs et reconnexions
 
