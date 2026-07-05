@@ -6,28 +6,33 @@ Keck3 est l'application Python de nouvelle génération pour l'acquisition et la
 
 ### Windows
 ```bash
-Double-clic sur start_ui.cmd
-# Automatique : crée l'env, installe dépendances, lance l'app
+Double-clic sur start_web_ui.cmd
+# ✓ Crée l'env automatiquement
+# ✓ Installe les dépendances
+# ✓ Lance le serveur
+# ✓ Ouvre http://localhost:5000
 ```
 
 ### Mac/Linux
 ```bash
-./start_ui.sh
-# Automatique : crée l'env, installe dépendances, lance l'app
+./start_web_ui.sh
+# ✓ Crée l'env automatiquement
+# ✓ Installe les dépendances  
+# ✓ Lance le serveur
+# ✓ Ouvre http://localhost:5000
 ```
 
-**C'est tout.** Une fenêtre s'ouvre, vous êtes prêt.
+**C'est tout.** Puis ouvrez votre navigateur sur `http://localhost:5000`
 
-## 📊 Interface graphique
+## 📊 Interface Web
 
-Interface native desktop ultra-simple :
+Dashboard moderne et responsive :
 - ✓ Statut en temps réel (port série, Open Prod)
-- ✓ Statistiques (électrique, thermique, erreurs)
+- ✓ Statistiques dynamiques (électrique, thermique, erreurs, succès)
 - ✓ Historique des 20 derniers contrôles
-- ✓ Logs en direct
-- ✓ Configuration facile (bouton ⚙)
-
-→ Voir [UI_SIMPLE.md](UI_SIMPLE.md) pour les détails
+- ✓ Logs en direct (mise à jour chaque 500ms)
+- ✓ Design sombre professionnel
+- ✓ Fonctionne sur Windows/Mac/Linux
 
 ## Architecture
 
