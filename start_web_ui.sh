@@ -1,13 +1,12 @@
 #!/bin/bash
 
-# Script de démarrage de Keck3 UI pour macOS/Linux
+# Script de démarrage de Keck3 Web UI pour macOS/Linux
 
 set -e
 
 # Vérifie que Python est installé
 if ! command -v python3 &> /dev/null; then
     echo "Erreur: Python 3 n'est pas installé"
-    echo "Installez Python 3 depuis https://www.python.org"
     exit 1
 fi
 
@@ -21,12 +20,9 @@ if [ ! -d "venv" ]; then
     python3 -m venv venv
 fi
 
-# Active l'environnement virtuel
-source venv/bin/activate
-
 # Installe les dépendances
 echo "Installation des dépendances..."
-pip install -r requirements.txt >/dev/null 2>&1
+venv/bin/pip install -q -r requirements.txt
 
 # Vérifie la configuration
 if [ ! -f ".env" ]; then
@@ -37,14 +33,16 @@ if [ ! -f ".env" ]; then
     echo ""
     echo "Veuillez éditer le fichier .env avec vos paramètres"
     echo ""
-    read -p "Appuyez sur Entrée pour continuer..."
 fi
 
-# Démarre Keck3 UI
+# Démarre Keck3 Web UI
 echo ""
 echo "==================================="
-echo "Démarrage de Keck3 UI"
+echo "Démarrage de Keck3 Web UI"
 echo "==================================="
+echo ""
+echo "Ouvrez votre navigateur :"
+echo "  👉 http://localhost:5000"
 echo ""
 
-python ui.py
+venv/bin/python web_ui.py

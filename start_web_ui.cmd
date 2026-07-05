@@ -1,16 +1,7 @@
 @echo off
-REM Script de démarrage de Keck3 UI pour Windows
+REM Script de démarrage de Keck3 Web UI pour Windows
 
 setlocal enabledelayedexpansion
-
-REM Vérifie que Python est installé
-where python >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo Erreur: Python n'est pas installé ou pas dans le PATH
-    echo Téléchargez Python depuis https://www.python.org
-    pause
-    exit /b 1
-)
 
 REM Change vers le répertoire du script
 cd /d "%~dp0"
@@ -21,12 +12,9 @@ if not exist "venv\" (
     python -m venv venv
 )
 
-REM Active l'environnement virtuel
-call venv\Scripts\activate.bat
-
 REM Installe les dépendances
 echo Installation des dépendances...
-pip install -r requirements.txt >nul 2>&1
+call venv\Scripts\pip.exe install -q -r requirements.txt
 
 REM Vérifie la configuration
 if not exist ".env" (
@@ -40,13 +28,16 @@ if not exist ".env" (
     pause
 )
 
-REM Démarre Keck3 UI
+REM Démarre Keck3 Web UI
 echo.
 echo ===================================
-echo Démarrage de Keck3 UI
+echo Démarrage de Keck3 Web UI
 echo ===================================
+echo.
+echo Ouvrez votre navigateur :
+echo   http://localhost:5000
 echo.
 
-python ui.py
+call venv\Scripts\python.exe web_ui.py
 
 pause
