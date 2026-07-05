@@ -51,12 +51,11 @@ Banc D1118 → Port Série → Keck3 (Python) → HTTP POST → Open Prod API �
 5. OpenProdAPIClient.post_heat_control() → transmission API
 6. Réponse loggée et traitée
 
-### Impression d'Étiquettes (Thread parallèle)
-1. LabelPrinter.start() lance un scheduler
-2. Scan toutes les 5s les répertoires réseau
-3. Détecte `label_barcode.txt` ou `label_serial_number.txt`
-4. Imprime via win32print (Windows) ou logging (autres systèmes)
-5. Supprime le fichier après impression
+### Impression d'Étiquettes (Immédiate)
+1. Après traitement réussi des données électriques/thermiques
+2. LabelPrinter.print_barcode() ou .print_serial_number() appelé immédiatement
+3. Impression directe via win32print (Windows) vers imprimante réseau
+4. Aucun fichier temporaire, pas de scanner, transmission instantanée
 
 ## Gestion des erreurs
 
@@ -97,6 +96,29 @@ Variables clés :
 3. **Validation custom** : ajouter règles dans les parsers de `DataParser`
 4. **Métriques/monitoring** : hooker un client Prometheus/Grafana
 
+## Impression d'étiquettes
+
+### Configuration
+L'impression fonctionne désormais en mode **immédiat** vers les imprimantes réseau (Windows seulement).
+
+Trouver les noms d'imprimantes disponibles :
+```python
+from core.label_printer import LabelPrinter
+printer = LabelPrinter()
+printer.list_network_printers()
+```
+
+Puis mettre à jour `.env` :
+```env
+LABEL_PRINTER_BARCODE=\\serveur\imprimante1
+LABEL_PRINTER_SERIAL=\\serveur\imprimante2
+```
+
+### Flux
+1. Contrôle électrique reçu & validé → impression code-barres immédiate
+2. Contrôle thermique reçu & validé → impression numéro de série immédiate
+3. Aucune attente ni dossier partagé requis
+
 ## Déploiement
 
 ### Windows
@@ -126,3 +148,4 @@ CMD ["python", "run.py"]
 4. ✅ **Logging complet** : traçabilité de chaque événement
 5. ✅ **Scalabilité** : threads indépendants, pas de blocage
 6. ✅ **Maintenance** : code Python moderne, type hints, documentation
+7. ✅ **Impression immédiate** : pas de scanning dossier, transmission directe à l'imprimante

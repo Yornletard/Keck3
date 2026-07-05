@@ -16,11 +16,10 @@ SERIAL_BAUDRATE = int(os.getenv('SERIAL_BAUDRATE', 9600))
 SERIAL_PARITY = 'N'
 SERIAL_TIMEOUT = 30
 
-# Label Printing Configuration
-LABEL_SHARE_PATH = os.getenv('LABEL_SHARE_PATH', '//172.18.50.26/labels')
+# Label Printing Configuration (Noms des imprimantes réseau connectées)
+# Windows: obtenir avec: python -c "from core.label_printer import LabelPrinter; LabelPrinter().list_network_printers()"
 LABEL_PRINTER_BARCODE = os.getenv('LABEL_PRINTER_BARCODE', r'\\misrv-imp\MI-IMPCB-M1-01')
 LABEL_PRINTER_SERIAL = os.getenv('LABEL_PRINTER_SERIAL', r'\\misrv-imp\MI-IMPCB-M1-02')
-LABEL_SCAN_INTERVAL = 5
 
 # Logging Configuration
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')

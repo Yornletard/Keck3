@@ -34,9 +34,8 @@ class Keck3Application:
         self.label_printer = LabelPrinter()
         self.is_running = False
 
-        # Threads
+        # Thread
         self.thread_data_reader = None
-        self.thread_label_printer = None
 
     def start(self):
         """Démarre l'application."""
@@ -60,20 +59,13 @@ class Keck3Application:
             self.is_running = False
             return False
 
-        # Démarre les threads
+        # Démarre le thread lecteur de données
         self.thread_data_reader = threading.Thread(
             target=self._data_reader_loop,
             name="DataReader",
             daemon=False
         )
         self.thread_data_reader.start()
-
-        self.thread_label_printer = threading.Thread(
-            target=self._label_printer_loop,
-            name="LabelPrinter",
-            daemon=False
-        )
-        self.thread_label_printer.start()
 
         logger.info("Application Keck3 démarrée")
         return True
@@ -149,7 +141,9 @@ class Keck3Application:
         response = self.api_client.post_electrical_control(data_payload)
 
         if response:
-            logger.info(f"Données électriques transmises avec succès: {response}")
+            logger.info(f"Données électriques transmises avec succès")
+            # Impression immédiate du code-barres
+            self._trigger_barcode_print()
         else:
             logger.error("Échec de la transmission des données électriques")
 
@@ -182,16 +176,41 @@ class Keck3Application:
         response = self.api_client.post_heat_control(data_payload)
 
         if response:
-            logger.info(f"Données thermiques transmises avec succès: {response}")
+            logger.info(f"Données thermiques transmises avec succès")
+            # Impression immédiate du numéro de série
+            self._trigger_serial_number_print()
         else:
             logger.error("Échec de la transmission des données thermiques")
 
-    def _label_printer_loop(self):
-        """Boucle d'impression des étiquettes."""
+    def _trigger_barcode_print(self, data: Optional[bytes] = None, qty: int = 1):
+        """Déclenche l'impression d'un code-barres."""
+        if data is None:
+            logger.debug("Impression code-barres demandée (données vides)")
+            return
+
         try:
-            self.label_printer.start()
+            success = self.label_printer.print_barcode(data, qty)
+            if success:
+                logger.info(f"Code-barres imprimé ({qty} copie(s))")
+            else:
+                logger.warning("Échec impression code-barres")
         except Exception as e:
-            logger.error(f"Erreur dans la boucle d'impression: {e}")
+            logger.error(f"Erreur lors du déclenchement d'impression barcode: {e}")
+
+    def _trigger_serial_number_print(self, data: Optional[bytes] = None, qty: int = 1):
+        """Déclenche l'impression d'un numéro de série."""
+        if data is None:
+            logger.debug("Impression numéro de série demandée (données vides)")
+            return
+
+        try:
+            success = self.label_printer.print_serial_number(data, qty)
+            if success:
+                logger.info(f"Numéro de série imprimé ({qty} copie(s))")
+            else:
+                logger.warning("Échec impression numéro de série")
+        except Exception as e:
+            logger.error(f"Erreur lors du déclenchement d'impression serial: {e}")
 
     def stop(self):
         """Arrête l'application proprement."""
@@ -200,15 +219,11 @@ class Keck3Application:
 
         # Arrête les services
         self.serial_reader.disconnect()
-        self.label_printer.stop()
         self.api_client.close()
 
         # Attend la fin des threads
         if self.thread_data_reader and self.thread_data_reader.is_alive():
             self.thread_data_reader.join(timeout=5)
-
-        if self.thread_label_printer and self.thread_label_printer.is_alive():
-            self.thread_label_printer.join(timeout=5)
 
         logger.info("Keck3 arrêté")
 

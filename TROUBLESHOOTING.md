@@ -92,7 +92,7 @@ print(line)
 
 **Symptôme:**
 ```
-Aucune ligne "Étiquette imprimée" dans les logs
+Aucune ligne "Code-barres imprimé" ou "Numéro de série imprimé" dans les logs
 ```
 
 **Solutions:**
@@ -102,20 +102,26 @@ Aucune ligne "Étiquette imprimée" dans les logs
 import sys
 print(sys.platform)  # Doit être 'win32'
 ```
-3. Installer win32print:
+3. Installer/mettre à jour win32print:
 ```bash
 pip install pywin32
 python -m pip install --upgrade pywin32
 ```
-4. Vérifier les chemins dans `.env`:
-   - `LABEL_SHARE_PATH` accessible
-   - `LABEL_PRINTER_BARCODE` existe
-   - `LABEL_PRINTER_SERIAL` existe
-5. Tester l'accès réseau:
+4. Vérifier les noms d'imprimantes dans `.env`:
+```bash
+# Lister les imprimantes disponibles
+python -c "from core.label_printer import LabelPrinter; LabelPrinter().list_network_printers()"
+```
+5. Copier les noms exacts dans `.env`:
+```env
+LABEL_PRINTER_BARCODE=\\serveur\imprimante1
+LABEL_PRINTER_SERIAL=\\serveur\imprimante2
+```
+6. Vérifier que les imprimantes sont accessibles:
 ```bash
 # Windows
-net use \\172.18.50.26\labels
-dir \\172.18.50.26\labels
+ping \\serveur
+# Ou depuis l'Explorateur : \\serveur
 ```
 
 ---

@@ -14,7 +14,7 @@ Keck3 est l'application Python de nouvelle génération pour l'acquisition et la
 
 - Lecture temps réel depuis le banc de contrôle (port série D1118)
 - Transmission des données de contrôle électrique et thermique
-- Impression automatique des étiquettes de code-barres
+- Impression **immédiate** vers imprimantes réseau (pas de dossier partagé)
 - Intégration native avec Open Prod
 - Logging complet et traçabilité
 - Gestion robuste des erreurs et reconnexions
@@ -44,8 +44,7 @@ OPEN_PROD_API_KEY=your_api_key_here
 SERIAL_PORT=COM3
 SERIAL_BAUDRATE=9600
 
-# Label Printing
-LABEL_SHARE_PATH=//172.18.50.26/labels
+# Label Printing (noms d'imprimantes réseau - Windows)
 LABEL_PRINTER_BARCODE=\\misrv-imp\MI-IMPCB-M1-01
 LABEL_PRINTER_SERIAL=\\misrv-imp\MI-IMPCB-M1-02
 
