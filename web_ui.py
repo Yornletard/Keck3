@@ -16,6 +16,7 @@ from core.serial_reader import SerialReader
 from api.client import OpenProdAPIClient
 from api.models import DataParser
 from config import SERIAL_PORT, OPEN_PROD_BASE_URL, OPEN_PROD_API_KEY
+from update_manager import UpdateManager
 
 logger = setup_logger(__name__)
 
@@ -35,6 +36,8 @@ state = {
     'logs': [],
     'port_status': 'disconnected',
     'api_status': 'disconnected',
+    'version': None,
+    'update_available': False,
 }
 
 class Keck3WebUI:
@@ -413,7 +416,13 @@ HTML_TEMPLATE = '''
     <div class="container">
         <!-- HEADER -->
         <div class="header">
-            <h1>KECK3 - Banc de Contrôle D1118</h1>
+            <div>
+                <h1>KECK3 - Banc de Contrôle D1118</h1>
+                <div style="font-size: 12px; opacity: 0.7; margin-top: 5px;">
+                    Version: <span id="version-current">--</span> |
+                    <a href="#" id="check-update-link" style="color: #4c6ef5; text-decoration: none;">Vérifier les mises à jour</a>
+                </div>
+            </div>
             <div class="header-info">
                 <div class="status-item">
                     <span class="status-dot ok" id="port-dot"></span>
@@ -422,6 +431,11 @@ HTML_TEMPLATE = '''
                 <div class="status-item">
                     <span class="status-dot ok" id="api-dot"></span>
                     <span id="api-text">Open Prod: --</span>
+                </div>
+                <div class="status-item">
+                    <button id="update-btn" style="display: none; margin: 0;">
+                        ⬆ Mise à jour disponible
+                    </button>
                 </div>
             </div>
         </div>
@@ -487,6 +501,10 @@ HTML_TEMPLATE = '''
         // Auto-refresh tous les 500ms
         setInterval(updateUI, 500);
 
+        // Vérifier les updates au démarrage
+        checkVersion();
+        setInterval(checkVersion, 300000); // Chaque 5 minutes
+
         function updateUI() {
             fetch('/api/status')
                 .then(r => r.json())
@@ -508,6 +526,50 @@ HTML_TEMPLATE = '''
                     updateLogs(data.logs);
                 });
         }
+
+        function checkVersion() {
+            fetch('/api/version')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('version-current').textContent = data.current || '--';
+
+                    fetch('/api/check-update', { method: 'POST' })
+                        .then(r => r.json())
+                        .then(update_data => {
+                            if (update_data.has_updates) {
+                                document.getElementById('update-btn').style.display = 'inline';
+                            }
+                        });
+                });
+        }
+
+        // Gestionnaire pour le lien de vérification
+        document.getElementById('check-update-link').addEventListener('click', function(e) {
+            e.preventDefault();
+            checkVersion();
+            alert('Vérification des mises à jour...');
+        });
+
+        // Gestionnaire pour le bouton de mise à jour
+        document.getElementById('update-btn').addEventListener('click', function() {
+            if (confirm('Appliquer les mises à jour maintenant ? (L\'app sera redémarrée)')) {
+                this.disabled = true;
+                this.textContent = '⟳ Mise à jour en cours...';
+
+                fetch('/api/apply-update', { method: 'POST' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Mises à jour appliquées ! Redémarrage...');
+                            setTimeout(() => location.reload(), 3000);
+                        } else {
+                            alert('Erreur: ' + data.message);
+                            this.disabled = false;
+                            this.textContent = '⬆ Mise à jour disponible';
+                        }
+                    });
+            }
+        });
 
         function updateDot(dotId, textId, status) {
             const dot = document.getElementById(dotId);
@@ -604,6 +666,35 @@ def api_stop():
     state['status'] = 'stopped'
     keck3_ui.stop()
     return jsonify({'status': 'stopped'})
+
+@app.route('/api/version')
+def api_version():
+    """Récupère les infos de version."""
+    manager = UpdateManager()
+    return jsonify(manager.get_version_info())
+
+@app.route('/api/check-update', methods=['POST'])
+def api_check_update():
+    """Vérifie les mises à jour disponibles."""
+    manager = UpdateManager()
+    has_updates = manager.check_updates()
+    state['update_available'] = has_updates
+    return jsonify({
+        'has_updates': has_updates,
+        'current': manager.get_current_version(),
+        'latest': manager.get_latest_version(),
+    })
+
+@app.route('/api/apply-update', methods=['POST'])
+def api_apply_update():
+    """Applique les mises à jour."""
+    manager = UpdateManager()
+    success = manager.apply_update()
+    return jsonify({
+        'success': success,
+        'message': 'Mises à jour appliquées' if success else 'Erreur lors de la mise à jour',
+        'current': manager.get_current_version(),
+    })
 
 def main():
     """Point d'entrée."""
