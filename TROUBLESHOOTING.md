@@ -29,37 +29,47 @@ ls /dev/tty*
 
 ---
 
-### 2. Erreur : "Authentification échouée"
+### 2. Erreur : jeton Open Prod refusé
 
 **Symptôme:**
 ```
-Authentification échouée - clé API invalide
+Connexion Open Prod impossible: Invalid database / Invalid id_secret
 ```
 
 **Solutions:**
-- Vérifier que `OPEN_PROD_API_KEY` est définie dans `.env`
-- Vérifier que la clé est correcte (pas d'espaces avant/après)
-- Vérifier que l'utilisateur Open Prod a les permissions API
-- Tester manuellement avec curl:
+- Vérifier `OPEN_PROD_DB` (nom de la base) et `OPEN_PROD_API_KEY` (`id_secret` OAuth2) dans `.env`
+- Vérifier que l'utilisateur lié à l'`id_secret` a les droits d'écriture sur les modèles du mapping
+- Tester manuellement:
 ```bash
-curl -H "Authorization: Bearer YOUR_API_KEY" https://open-prod.matferbourgeat.com/api/health
+curl -X POST -H "Content-Type: application/json" -d '{"db":"DB","id_secret":"SECRET"}' \
+  https://open-prod.matferbourgeat.com/web/api/getToken
 ```
 
 ---
 
-### 3. Erreur : "Ressource non trouvée (404)"
+### 2b. Des contrôles s'accumulent dans `data/outbox/`
+
+**Symptôme:** compteur « En attente d'envoi » qui monte dans l'interface, logs `Open Prod indisponible (...), nouvel essai dans Ns`.
+
+**Cause:** Open Prod injoignable ou en erreur passagère. Les contrôles sont conservés et rejoués automatiquement
+(toutes les 5 s, 15 s, 60 s puis 5 min), y compris après un redémarrage de Keck3. Rien à faire, sauf vérifier le
+réseau / l'instance Open Prod. Les étiquettes sortent au retour.
+
+**Fichiers dans `data/outbox/failed/`:** contrôles **refusés** par Open Prod (champ `last_error` dans le fichier).
+Corriger la cause (mapping, valeur, droits) puis redéposer le fichier dans `data/outbox/` pour le rejouer.
+
+### 3. Erreur : "Mapping Open Prod non configuré" ou "Invalid parameter name"
 
 **Symptôme:**
 ```
-Statut HTTP 404: Not Found
+Échec de la transmission du contrôle électrique F123-1: Mapping Open Prod non configuré pour 'electrical'
+Échec de la transmission ...: Invalid parameter name ...
 ```
 
 **Solutions:**
-- Vérifier que les endpoints existent dans Open Prod:
-  - `/api/machinedata/electricalcontrol`
-  - `/api/machinedata/heatcontrol`
-- Vérifier que `OPEN_PROD_BASE_URL` dans `.env` est correct
-- Consulter la documentation Open Prod pour les URLs exactes
+- Copier `openprod_mapping.example.json` vers `data/openprod_mapping.json` et y mettre les modèles/champs validés avec Objectif-PI
+- Lister les champs d'un modèle : `method=read_fields` (voir `api/client.py::read_fields`)
+- Vérifier que `OPEN_PROD_BASE_URL` dans `.env` est l'URL de l'instance Matfer Industrie
 
 ---
 

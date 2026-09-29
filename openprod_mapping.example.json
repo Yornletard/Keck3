@@ -1,0 +1,49 @@
+{
+  "_comment": "Copier vers data/openprod_mapping.json. Traduit un contrôle Keck3 en enregistrement Open Prod (API générique : method=create, model, values). Modèles x_electrical_control et x_heating_measurement créés par Objectif-PI le 29/09/2026 sur la base qhse_test (à recréer à l'identique sur matfer_production). fields = attribut Keck3 → champ Open Prod ; casts = conversion avant envoi (x_is_ok de la chauffe est un entier) ; relations = many2one résolu par recherche avant création (l'OF F123456 du banc est cherché par son name dans mrp.manufacturingorder ; introuvable et non required → créé sans lien + avertissement) ; dedupe_on = attributs qui identifient un contrôle, relus dans Open Prod avant chaque création pour ne jamais créer de doublon. Vérifier les champs avec method=read_fields avant la mise en prod.",
+  "electrical": {
+    "model": "x_electrical_control",
+    "fields": {
+      "serial_number": "x_name",
+      "operator_number": "x_operator_number",
+      "program_number": "x_program_number",
+      "datetime": "x_date_time",
+      "continuity_test": "x_continuity_test",
+      "hv_voltage_test": "x_hv_voltage_test",
+      "hv_intensity_loss_test": "x_hv_intensity_loss_test",
+      "insulation_test": "x_insulation_test",
+      "power_voltage_test": "x_power_voltage_test",
+      "power_intensity_test": "x_power_intensity_test",
+      "power_calc_intensity_test": "x_power_calc_intensity_test",
+      "status_code": "x_status_code",
+      "status_ok": "x_is_ok"
+    },
+    "casts": {},
+    "relations": {
+      "fab_order_number": { "field": "x_mo_id", "model": "mrp.manufacturingorder", "search_field": "name", "required": false }
+    },
+    "constants": {},
+    "raw_frame_field": "x_raw_frame",
+    "datetime_format": "%Y-%m-%d %H:%M:%S",
+    "dedupe_on": ["serial_number", "datetime"]
+  },
+  "heat": {
+    "model": "x_heating_measurement",
+    "fields": {
+      "serial_number": "x_name",
+      "operator_number": "x_operator_number",
+      "way_number": "x_way_number",
+      "datetime": "x_date_time",
+      "temperature": "x_temperature",
+      "status_code": "x_status_code",
+      "status_ok": "x_is_ok"
+    },
+    "casts": { "status_ok": "int" },
+    "relations": {
+      "fab_order_number": { "field": "x_mo_id", "model": "mrp.manufacturingorder", "search_field": "name", "required": false }
+    },
+    "constants": {},
+    "raw_frame_field": "x_raw_frame",
+    "datetime_format": "%Y-%m-%d %H:%M:%S",
+    "dedupe_on": ["serial_number", "datetime", "way_number"]
+  }
+}

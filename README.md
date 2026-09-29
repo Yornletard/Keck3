@@ -46,11 +46,12 @@ Dashboard moderne et responsive :
 
 - Lecture temps réel depuis le banc de contrôle (port série D1118)
 - Transmission des données de contrôle électrique et thermique
-- Impression **immédiate** vers imprimantes réseau
+- Impression **immédiate** des deux étiquettes (code-barres + n° de série) selon la règle keck1
 - Intégration native avec Open Prod
-- Interface graphique native (PySimpleGUI)
+- Tableau de bord web (Flask) optionnel
 - Logging complet et traçabilité
-- Gestion robuste des erreurs et reconnexions
+- Reconnexion automatique du port série, recalage des trames sur la ligne date
+- File locale persistée : aucun contrôle perdu si Open Prod est en panne, aucun doublon au rejeu
 
 ## Installation
 
@@ -69,12 +70,13 @@ pip install -r requirements.txt
 Créer un fichier `.env` à la racine du projet :
 
 ```env
-# Open Prod API
+# Open Prod API (générique : getToken + endpoint)
 OPEN_PROD_BASE_URL=https://open-prod.matferbourgeat.com
-OPEN_PROD_API_KEY=your_api_key_here
+OPEN_PROD_DB=nom_de_la_base
+OPEN_PROD_API_KEY=id_secret_oauth2
 
-# Serial Port
-SERIAL_PORT=COM3
+# Serial Port ('auto' = adaptateur USB série reconnu, sinon l'unique port présent)
+SERIAL_PORT=auto
 SERIAL_BAUDRATE=9600
 
 # Label Printing (noms d'imprimantes réseau - Windows)
@@ -101,24 +103,32 @@ Keck3/
 ├── requirements.txt       # Dépendances Python
 ├── README.md
 │
+├── web_ui.py              # Tableau de bord Flask (observe run.py)
+├── printer_test.py        # Test des imprimantes
+├── programs.example.json  # Modèle du référentiel des programmes
+├── openprod_mapping.example.json # Modèle du mapping contrôle → modèle Open Prod
+│
 ├── core/
-│   ├── __init__.py
 │   ├── serial_reader.py   # Lecture du port série
-│   ├── label_printer.py   # Gestion impression d'étiquettes
+│   ├── labels.py          # Programmes, gabarits SBPL, règle d'impression
+│   ├── outbox.py          # File locale persistée des contrôles à transmettre
+│   ├── label_printer.py   # Envoi aux imprimantes (Windows)
 │   └── logger.py          # Logging centralisé
 │
 ├── api/
-│   ├── __init__.py
-│   ├── client.py          # Client API Open Prod
-│   └── models.py          # Modèles de données
+│   ├── client.py          # Client API Open Prod (getToken + endpoint)
+│   ├── publisher.py       # Mapping contrôle Keck3 → enregistrement Open Prod
+│   └── models.py          # Protocole D1118 : parsing des trames
 │
-├── data/
-│   └── (données locales)
+├── labels/                # Gabarits SBPL (repris de keck1)
+├── tests/                 # Tests unitaires (trames réelles, étiquettes)
+├── data/                  # programs.json, machines.json, outbox/ (non versionnés)
 └── logs/
-    └── (fichiers logs)
 ```
 
 ## Types de contrôles
+
+Le protocole détaillé (champs, facteurs d'échelle, n° de série `F{OF}-{n}`) est décrit dans `ARCHITECTURE.md`.
 
 ### Contrôle Électrique
 - Test de continuité
@@ -130,14 +140,19 @@ Keck3/
 - Test d'intensité puissance calculée
 
 ### Contrôle Thermique
-- Mesures de température par voies (jusqu'à N voies)
-- Horodatage précis
+- 8 voies, chaque voie = une machine (OF, n° de série, opérateur, température, statut)
+- Horodatage du banc
 
 ## Intégration Open Prod
 
-Les données sont synchronisées directement avec les entités suivantes dans Open Prod :
-- Machines
-- Contrôles électriques & résultats
-- Contrôles thermiques & résultats
-- Opérateurs
-- Codes de statut
+L'API Open Prod est générique (Odoo-like) : Keck3 crée des enregistrements dans des **modèles** Open Prod via
+`POST /web/api/endpoint` (`method=create`). Le modèle et les champs cibles sont décrits dans
+`data/openprod_mapping.json` (modèle : `openprod_mapping.example.json`). ⚠️ Les modèles cibles doivent être
+validés avec Objectif-PI avant la mise en prod du 21/09/2026 — voir `ARCHITECTURE.md`.
+
+## Tests
+
+```bash
+python test_setup.py              # diagnostic complet + tests unitaires
+python -m unittest discover tests # tests seuls
+```

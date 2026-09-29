@@ -66,18 +66,14 @@ def test_imports():
 def test_directories():
     """Teste que les répertoires existent."""
     print("\nTesting directories...")
-    dirs = [
-        Path("core"),
-        Path("api"),
-        Path("logs"),
-        Path("data"),
-    ]
+    base = Path(__file__).parent
+    dirs = [base / "core", base / "api", base / "labels", base / "logs", base / "data"]
 
     for d in dirs:
         if d.exists():
-            print(f"  ✓ {d}")
+            print(f"  ✓ {d.name}")
         else:
-            print(f"  ✗ {d} (sera créé)")
+            print(f"  ✗ {d.name} (sera créé)")
 
     return True
 
@@ -88,18 +84,24 @@ def test_config():
     try:
         from config import (
             OPEN_PROD_BASE_URL,
+            OPEN_PROD_DB,
             OPEN_PROD_API_KEY,
+            OPEN_PROD_MAPPING_FILE,
             SERIAL_PORT,
             SERIAL_BAUDRATE,
         )
 
         print(f"  ✓ OPEN_PROD_BASE_URL: {OPEN_PROD_BASE_URL}")
 
-        if not OPEN_PROD_API_KEY:
-            print("  ⚠ OPEN_PROD_API_KEY: non configurée (créer .env)")
+        if not OPEN_PROD_DB or not OPEN_PROD_API_KEY:
+            print("  ⚠ OPEN_PROD_DB / OPEN_PROD_API_KEY: non configurés (créer .env)")
             return False
+        print(f"  ✓ OPEN_PROD_DB: {OPEN_PROD_DB}")
+        print("  ✓ OPEN_PROD_API_KEY: configurée")
+        if OPEN_PROD_MAPPING_FILE.exists():
+            print(f"  ✓ Mapping Open Prod: {OPEN_PROD_MAPPING_FILE}")
         else:
-            print("  ✓ OPEN_PROD_API_KEY: configurée")
+            print(f"  ⚠ Mapping Open Prod absent ({OPEN_PROD_MAPPING_FILE}) : copier openprod_mapping.example.json")
 
         print(f"  ✓ SERIAL_PORT: {SERIAL_PORT}")
         print(f"  ✓ SERIAL_BAUDRATE: {SERIAL_BAUDRATE}")
@@ -126,29 +128,26 @@ def test_serial_ports():
         return False
 
 def test_data_parser():
-    """Teste le parser de données."""
-    print("\nTesting data parser...")
+    """Lance les tests unitaires (parser sur trames réelles, étiquettes)."""
+    print("\nTesting data parser & labels (tests/)...")
+    import unittest
+    suite = unittest.defaultTestLoader.discover(str(Path(__file__).parent / 'tests'))
+    result = unittest.TextTestRunner(verbosity=0).run(suite)
+    status = "✓" if result.wasSuccessful() else "✗"
+    print(f"  {status} {result.testsRun} test(s), {len(result.failures)} échec(s), {len(result.errors)} erreur(s)")
+    return result.wasSuccessful()
+
+def test_programs():
+    """Vérifie le référentiel des programmes (nécessaire aux étiquettes)."""
+    print("\nTesting programs catalog...")
     try:
-        from api.models import DataParser
-
-        # Test electrical control
-        frame = (["1"], ["1", "2", "3", "4", "5", "6", "7"])
-        control_type = DataParser.classify_frame(frame)
-        if control_type == 'electrical':
-            print("  ✓ Electrical control classification")
+        from config import PROGRAMS_FILE
+        from core.labels import ProgramCatalog
+        catalog = ProgramCatalog(PROGRAMS_FILE)
+        if len(catalog):
+            print(f"  ✓ {len(catalog)} programme(s) dans {PROGRAMS_FILE}")
         else:
-            print(f"  ✗ Electrical control classification (got {control_type})")
-            return False
-
-        # Test heat control
-        frame = (["1"], ["75.5", "76.2", "74.8"])
-        control_type = DataParser.classify_frame(frame)
-        if control_type == 'heat':
-            print("  ✓ Heat control classification")
-        else:
-            print(f"  ✗ Heat control classification (got {control_type})")
-            return False
-
+            print(f"  ⚠ Aucun programme dans {PROGRAMS_FILE} (copier programs.example.json) : pas d'étiquettes")
         return True
     except Exception as e:
         print(f"  ✗ Erreur: {e}")
@@ -167,6 +166,7 @@ def main():
     results.append(("Configuration", test_config()))
     results.append(("Serial Ports", test_serial_ports()))
     results.append(("Data Parser", test_data_parser()))
+    results.append(("Programs", test_programs()))
 
     print("\n" + "=" * 60)
     print("Résumé des tests")

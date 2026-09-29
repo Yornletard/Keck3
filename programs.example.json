@@ -1,0 +1,9 @@
+{
+  "_comment": "Copier vers data/programs.json. Clé = code programme envoyé par le banc (champ 4 de la trame électrique). duration en minutes : 0 = étiquettes après le contrôle électrique, > 0 = après le contrôle de chauffe. labels = LIBELLE1..3 imprimés sur l'étiquette code-barres (ex-vue Oracle VW_XX_ETIQ_MAC_ELEC).",
+  "1": {
+    "name": "CALORIBAC",
+    "product_code": "260434",
+    "duration": 0,
+    "labels": ["CALORIBAC 260434", "220-240 V~50 Hz  300 W     IPX3", ""]
+  }
+}

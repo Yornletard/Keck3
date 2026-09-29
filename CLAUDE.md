@@ -7,7 +7,7 @@ Keck3 replaces the legacy Keck1 + KeckCapture system with a modern, embedded Pyt
 **Key files:**
 - Entry point: `run.py`
 - Configuration: `config.py`
-- Core modules: `core/` (serial I/O, logging, label printing)
+- Core modules: `core/` (serial I/O, logging, labels + label printing)
 - API integration: `api/` (Open Prod client, data models)
 
 ## Development Guidelines
@@ -22,14 +22,18 @@ Keck3 replaces the legacy Keck1 + KeckCapture system with a modern, embedded Pyt
 ### Module responsibility
 - `core/serial_reader.py`: Serial port I/O only
 - `core/logger.py`: Logging setup (don't log in other modules)
+- `core/labels.py`: Program catalog, SBPL label generation, print decision rule (ported from keck1 PrintService)
 - `core/label_printer.py`: Windows label printing via win32print
-- `api/client.py`: HTTP calls to Open Prod, retry logic
-- `api/models.py`: Data parsing and transformation
-- `run.py`: Orchestration, threading, signal handling
+- `api/client.py`: Open Prod generic API (Odoo-like: `getToken` + `endpoint` with method/model/values), token renewal, retry logic
+- `api/publisher.py`: maps a Keck3 control to Open Prod `create` calls using `data/openprod_mapping.json`
+- `api/models.py`: D1118 frame protocol parsing (source of truth = legacy keck1 `MachineService`; real frames in `tests/`)
+- `core/outbox.py`: persistent local queue (`data/outbox/`), one JSON per control, idempotency key
+- `run.py`: Orchestration, two threads (serial reader → outbox; publisher → Open Prod + labels), events for the UI
+- `web_ui.py`: Flask dashboard observing `run.py` events (no business logic)
 
 ### Adding features
 1. New control type? → Add parser to `api/models.py`, endpoint to `run.py`
-2. New API endpoint? → Add method to `api/client.py`
+2. New Open Prod model/field to feed? → Edit `data/openprod_mapping.json` (no code); new API method → `api/client.py`
 3. New configuration? → Add to `config.py` with env var + default
 4. New error handling? → Log it, don't catch and hide
 
@@ -39,7 +43,10 @@ Run `python test_setup.py` before each session to verify:
 - Dependencies installed
 - Configuration loaded
 - Serial ports available
-- Data parsing works
+- Unit tests pass (`tests/`: real D1118 frames, SBPL labels) — or `python -m unittest discover tests`
+- Programs catalog present (`data/programs.json`)
+
+Never change the frame parsing without checking against keck1 (`~/Sites/keck1/src/AppBundle/Services/MachineService.php`).
 
 ## Deployment
 
@@ -85,16 +92,22 @@ LOG_LEVEL=DEBUG python run.py  # Shows all requests/responses
 
 ### Check if Open Prod API is reachable
 ```bash
-curl -H "Authorization: Bearer YOUR_API_KEY" \
-  https://open-prod.matferbourgeat.com/api/machinedata/electricalcontrol
+# Serveur interne (réseau Matfer ou VPN Kerio), certificat non reconnu → -k. Bases : matfer_production, qhse_test (tests).
+curl -k -X POST -H "Content-Type: application/json" \
+  -d '{"db":"qhse_test","id_secret":"CLE_API_UTILISATEUR"}' \
+  https://misrv-opp1.matferbourgeat.com/web/api/getToken
+# → {"jsonrpc":"2.0","result":{"data":"<token>"}}  (jeton valable 2 h)
 ```
+L'`id_secret` est la clé API personnelle créée dans Open Prod (avatar > Mes préférences > Sécurité du compte).
+Open Prod API doc: `~/Documents/openprod/site/doc_python/addons/web.controllers.html` (section `openprod_api`).
 
 ## Known Limitations
 
 - Label printing only works on Windows (requires win32print)
 - On Unix, label printing silently logs instead of printing
-- Serial port must be available at startup (no hot-plugging)
-- Open Prod API responses are fire-and-forget (no validation)
+- Serial port lost at runtime → reconnection attempts every 5 s
+- Open Prod down → controls wait in `data/outbox/` (replayed with backoff, survive restarts); refused ones land in `data/outbox/failed/`
+- Target Open Prod models/fields (mapping file) still to be validated with Objectif-PI / Matfer Industrie setup
 
 ## Migration Notes
 
@@ -118,16 +131,25 @@ Keck3/
 ├── start_keck3.cmd     # Windows launcher
 ├── start_keck3.sh      # Unix launcher
 │
+├── web_ui.py           # Flask dashboard
+├── printer_test.py     # Printer discovery / test print
+├── programs.example.json
+├── openprod_mapping.example.json
+│
 ├── core/
-│   ├── __init__.py
 │   ├── logger.py       # Logging setup
 │   ├── serial_reader.py # Serial port I/O
+│   ├── labels.py       # Programs, SBPL templates, print rule
+│   ├── outbox.py       # Persistent local queue
 │   └── label_printer.py # Windows label printing
 │
 ├── api/
-│   ├── __init__.py
-│   ├── client.py       # Open Prod HTTP client
-│   └── models.py       # Data models & parsing
+│   ├── client.py       # Open Prod API client (getToken + endpoint)
+│   ├── publisher.py    # Control → Open Prod record mapping
+│   └── models.py       # D1118 protocol parsing
+│
+├── labels/             # SBPL templates (from keck1)
+├── tests/              # unittest suite
 │
 └── docs/
     ├── README.md       # User guide
