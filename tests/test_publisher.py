@@ -27,7 +27,7 @@ class FakeClient:
     def read(self, model, filters=None, fields=None, limit=None, order=None, retry=True):
         self.reads.append((model, filters, retry))
         if model == 'mrp.manufacturingorder':
-            return [{'id': 4242}] if filters and filters[0][2] == 'F111111111' else []
+            return [{'id': 4242}] if filters and filters[0][2] == 'OF111111111' else []
         return list(self.existing)
 
     def create(self, model, values, use_onchange=True, retry=True):
@@ -55,8 +55,20 @@ class TargetMappingTest(unittest.TestCase):
         self.assertEqual(values['date_time'], '2018-10-29 13:51:10')
         self.assertTrue(values['is_ok'])
         self.assertEqual(values['company_id'], 1)
-        self.assertTrue(values['raw'].startswith('29/10/2018 13:51:10'))
+        self.assertTrue(values['raw'].startswith('29/10/2018 13:51:10\n111111111 00000001'))
+        self.assertNotIn('\x00', values['raw'])  # refusé par la base d'Open Prod
+        self.assertNotIn('\r', values['raw'])
         self.assertNotIn('operator_number', values)
+
+    def test_cast_and_summer_time_conversion(self):
+        from datetime import datetime
+        control = DataParser.parse_electrical_control(ELECTRICAL_FRAME)
+        control.datetime = datetime(2026, 7, 1, 9, 30, 0)  # heure d'été : UTC+2
+        mapping = TargetMapping(model='m', fields={'datetime': 'd', 'status_ok': 'ok'},
+                                casts={'status_ok': 'int'}, datetime_timezone='Europe/Paris')
+        values = mapping.values_for(control)
+        self.assertEqual(values['d'], '2026-07-01 07:30:00')
+        self.assertIs(values['ok'], 1)
 
     def test_unknown_attribute_is_rejected(self):
         control = DataParser.parse_electrical_control(ELECTRICAL_FRAME)
@@ -78,7 +90,8 @@ class PublisherTest(unittest.TestCase):
         self.assertAlmostEqual(values['x_power_voltage_test'], 242.7)
         self.assertEqual(values['x_status_code'], 1)
         self.assertIs(values['x_is_ok'], True)
-        self.assertEqual(values['x_mo_id'], 4242)  # OF F111111111 résolu par son nom
+        self.assertEqual(values['x_mo_id'], 4242)  # F111111111 du banc → OF nommé OF111111111 dans Open Prod
+        self.assertEqual(values['x_date_time'], '2018-10-29 12:51:10')  # heure de Paris (hiver) → UTC
         self.assertNotIn('fab_order_number', values)
         self.assertIsNone(result.warning)
 
@@ -90,7 +103,7 @@ class PublisherTest(unittest.TestCase):
         self.assertEqual(way.way_number, 1)
         self.assertEqual(client.created[1][0], 'x_heating_measurement')
         self.assertEqual(client.created[1][1]['x_way_number'], 1)
-        self.assertIs(client.created[1][1]['x_is_ok'], 0)  # statut 0 → entier 0 (pas False) : le champ Open Prod est un entier
+        self.assertIs(client.created[1][1]['x_is_ok'], False)
 
     def test_one_record_and_one_result_per_way(self):
         client = FakeClient()
@@ -113,7 +126,7 @@ class PublisherTest(unittest.TestCase):
         self.assertEqual(client.created, [])
         model, filters, retry = client.reads[0]
         self.assertEqual(model, 'x_electrical_control')
-        self.assertEqual(filters, [['x_name', '=', 'F111111111-1'], ['x_date_time', '=', '2018-10-29 13:51:10']])
+        self.assertEqual(filters, [['x_name', '=', 'F111111111-1'], ['x_date_time', '=', '2018-10-29 12:51:10']])
         self.assertFalse(retry)
 
     def test_create_is_never_retried_by_the_client(self):
@@ -213,6 +226,23 @@ class PublisherTest(unittest.TestCase):
         result = publisher.publish_electrical(DataParser.parse_electrical_control(ELECTRICAL_FRAME))
         self.assertFalse(result.ok)
         self.assertTrue(result.transient)
+
+    def test_search_template_builds_the_open_prod_name(self):
+        client = FakeClient()
+        publisher = publisher_with(client, {'electrical': {
+            'model': 'e', 'fields': {'serial_number': 'x_name'},
+            'relations': {'fab_order_number': {'field': 'x_mo_id', 'model': 'mrp.manufacturingorder',
+                                               'search_template': 'OF{digits}'}}}})
+        result = publisher.publish_electrical(DataParser.parse_electrical_control(ELECTRICAL_FRAME))
+        self.assertTrue(result.ok)
+        self.assertEqual(client.reads[-1][1], [['name', '=', 'OF111111111']])
+        self.assertEqual(client.created[0][1]['x_mo_id'], 4242)
+        self.assertEqual(client.created[0][1]['x_name'], 'F111111111-1')  # le n° de série reste en F
+
+    def test_unknown_timezone_disables_the_mapping(self):
+        publisher = publisher_with(FakeClient(), {'electrical': {'model': 'e', 'fields': {'serial_number': 'x_name'},
+                                                                 'datetime_timezone': 'Europe/Nowhere'}})
+        self.assertFalse(publisher.is_configured)
 
     def test_unknown_cast_disables_the_mapping(self):
         publisher = publisher_with(FakeClient(), {'electrical': {'model': 'e', 'fields': {'serial_number': 'x_name'},

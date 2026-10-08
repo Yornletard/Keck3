@@ -128,18 +128,23 @@ base de test `qhse_test` du serveur `misrv-opp1.matferbourgeat.com` (bases : `ma
 | Modèle Open Prod | Champs (préfixe `x_` imposé par Open Prod) |
 |---|---|
 | `x_electrical_control` « Contrôle électrique » | `x_name` (n° de série), `x_mo_id` (many2one `mrp.manufacturingorder`), `x_operator_number`, `x_program_number`, `x_date_time`, `x_continuity_test`, `x_hv_voltage_test`, `x_hv_intensity_loss_test`, `x_insulation_test`, `x_power_voltage_test`, `x_power_intensity_test`, `x_power_calc_intensity_test`, `x_status_code`, `x_is_ok` (booléen), `x_raw_frame` |
-| `x_heating_measurement` « Mesure de chauffe » | `x_name`, `x_mo_id`, `x_operator_number`, `x_way_number`, `x_date_time`, `x_temperature`, `x_status_code`, `x_is_ok` (**entier**, d'où `casts`), `x_raw_frame` |
+| `x_heating_measurement` « Mesure de chauffe » | `x_name`, `x_mo_id`, `x_operator_number`, `x_way_number`, `x_date_time`, `x_temperature`, `x_status_code`, `x_is_ok` (booléen), `x_raw_frame` |
 
-Le banc ne connaît l'OF que par son numéro (`F123456`) : Keck3 cherche l'OF par son `name` et pose son id dans `x_mo_id`
-(consigne de Florent). Le mapping est dans `openprod_mapping.example.json` (à copier dans `data/`). Vérifier les champs
+Le banc n'envoie qu'un **nombre** pour l'OF. Keck3 en fait `F<nombre>` pour le n° de série des étiquettes (inchangé depuis
+keck1) et cherche dans Open Prod l'OF nommé `OF<nombre>` (`search_template: "OF{digits}"`), dont il pose l'id dans `x_mo_id`.
+Séquence des OF sur `qhse_test` : `OF` + année/mois (4 chiffres) + compteur sur 5 chiffres, ex. `OF260900001` : l'opérateur
+saisit donc `260900001` sur le banc. L'horodatage du banc (heure locale) est converti en UTC (`datetime_timezone`), et la
+trame brute est débarrassée de ses caractères NUL, que la base d'Open Prod refuse.
+Création réelle validée sur `qhse_test` le 30/09/2026 (électrique + chauffe, anti-doublon vérifié au second envoi). Le mapping est dans `openprod_mapping.example.json` (à copier dans `data/`). Vérifier les champs
 avec `read_fields` avant la mise en prod. Copie locale de la doc : `~/Documents/openprod/site/`.
 
 ## Points ouverts
 
-- **Droits d'accès** sur les deux modèles (`ir.model.access`) : aucun au 29/09/2026, même la lecture est refusée → à
-  poser par Objectif-PI pour l'utilisateur dont la clé API sert à Keck3. Puis recréer les modèles à l'identique sur
-  `matfer_production`.
-- **OF de test** : `qhse_test` ne contient aucun ordre de fabrication ; il en faut au format `F123456` pour tester le lien.
+- **Lien vers l'OF non testé en réel** : `qhse_test` ne contient aucun ordre de fabrication. À tester dès qu'un OF existe.
+- **Format réel des noms d'OF en production** : à confirmer par Objectif-PI (« OF + date inversée + séquence ») ; la partie
+  numérique doit tenir dans le champ OF du banc (9 chiffres dans les trames archivées).
+- **Droits d'accès** : posés le 30/09/2026 sur le groupe « Administration / Responsable ». Pour la production, prévoir un
+  utilisateur dédié au banc et un groupe moins large, puis recréer les deux modèles à l'identique sur `matfer_production`.
 - **Numéro de série Open Prod** : Florent souhaite à terme rattacher chaque pièce à un n° de série (m2o, non paramétré),
   à voir avec Pascal Robache. Évolution, pas un préalable.
 - **Référentiel des programmes** : `data/programs.json` remplace la table Oracle `Program` et la vue

@@ -1,5 +1,5 @@
 {
-  "_comment": "Copier vers data/openprod_mapping.json. Traduit un contrôle Keck3 en enregistrement Open Prod (API générique : method=create, model, values). Modèles x_electrical_control et x_heating_measurement créés par Objectif-PI le 29/09/2026 sur la base qhse_test (à recréer à l'identique sur matfer_production). fields = attribut Keck3 → champ Open Prod ; casts = conversion avant envoi (x_is_ok de la chauffe est un entier) ; relations = many2one résolu par recherche avant création (l'OF F123456 du banc est cherché par son name dans mrp.manufacturingorder ; introuvable et non required → créé sans lien + avertissement) ; dedupe_on = attributs qui identifient un contrôle, relus dans Open Prod avant chaque création pour ne jamais créer de doublon. Vérifier les champs avec method=read_fields avant la mise en prod.",
+  "_comment": "Copier vers data/openprod_mapping.json. Traduit un contrôle Keck3 en enregistrement Open Prod (API générique : method=create, model, values). Modèles x_electrical_control et x_heating_measurement créés par Objectif-PI le 29/09/2026 sur la base qhse_test (à recréer à l'identique sur matfer_production). fields = attribut Keck3 → champ Open Prod ; casts = conversion optionnelle avant envoi (int, float, str, bool) ; datetime_timezone = fuseau de l'horloge du banc, converti en UTC car Open Prod stocke en UTC ; relations = many2one résolu par recherche avant création (le banc envoie un nombre, Keck3 en fait F260900001 pour le n° de série et cherche l'OF nommé OF260900001 via search_template ; introuvable et non required → créé sans lien + avertissement) ; dedupe_on = attributs qui identifient un contrôle, relus dans Open Prod avant chaque création pour ne jamais créer de doublon. Vérifier les champs avec method=read_fields avant la mise en prod.",
   "electrical": {
     "model": "x_electrical_control",
     "fields": {
@@ -19,11 +19,12 @@
     },
     "casts": {},
     "relations": {
-      "fab_order_number": { "field": "x_mo_id", "model": "mrp.manufacturingorder", "search_field": "name", "required": false }
+      "fab_order_number": { "field": "x_mo_id", "model": "mrp.manufacturingorder", "search_field": "name", "search_template": "OF{digits}", "required": false }
     },
     "constants": {},
     "raw_frame_field": "x_raw_frame",
     "datetime_format": "%Y-%m-%d %H:%M:%S",
+    "datetime_timezone": "Europe/Paris",
     "dedupe_on": ["serial_number", "datetime"]
   },
   "heat": {
@@ -37,13 +38,14 @@
       "status_code": "x_status_code",
       "status_ok": "x_is_ok"
     },
-    "casts": { "status_ok": "int" },
+    "casts": {},
     "relations": {
-      "fab_order_number": { "field": "x_mo_id", "model": "mrp.manufacturingorder", "search_field": "name", "required": false }
+      "fab_order_number": { "field": "x_mo_id", "model": "mrp.manufacturingorder", "search_field": "name", "search_template": "OF{digits}", "required": false }
     },
     "constants": {},
     "raw_frame_field": "x_raw_frame",
     "datetime_format": "%Y-%m-%d %H:%M:%S",
+    "datetime_timezone": "Europe/Paris",
     "dedupe_on": ["serial_number", "datetime", "way_number"]
   }
 }

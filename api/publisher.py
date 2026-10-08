@@ -8,9 +8,10 @@ contrôle Keck3 en enregistrement Open Prod d'après un **fichier de mapping**
 
     { "electrical": { "model": "x_electrical_control",
                       "fields": { "serial_number": "x_name", "status_code": "x_status_code" },
-                      "casts": { "status_ok": "int" },
+                      "datetime_timezone": "Europe/Paris",
                       "relations": { "fab_order_number": { "field": "x_mo_id", "model": "mrp.manufacturingorder",
-                                                           "search_field": "name", "required": false } },
+                                                           "search_field": "name", "search_template": "OF{digits}",
+                                                           "required": false } },
                       "constants": { "company_id": 1 },
                       "raw_frame_field": "x_raw_frame",
                       "dedupe_on": ["serial_number", "datetime"] },
@@ -19,8 +20,11 @@ contrôle Keck3 en enregistrement Open Prod d'après un **fichier de mapping**
 ``fields`` : attribut Keck3 (voir ``ControlData.as_dict``) → champ Open Prod. Seuls les
 attributs listés sont envoyés. ``casts`` : conversion d'un attribut avant envoi (``int``,
 ``float``, ``str``, ``bool``), ex. un booléen Keck3 vers un champ entier Open Prod.
+``datetime_timezone`` : fuseau de l'horloge du banc ; Open Prod stockant en UTC, l'horodatage
+est converti avant envoi (sinon il s'affiche décalé d'une ou deux heures).
 ``relations`` : attribut Keck3 → many2one Open Prod, résolu par un ``read`` sur le modèle
-cible (``search_field`` = valeur de l'attribut) avant la création. Introuvable : refus
+cible (``search_field`` = valeur de l'attribut, ou ``search_template`` : ``"OF{digits}"`` transforme
+le ``F260900001`` du banc en ``OF260900001``, nom de l'OF dans Open Prod) avant la création. Introuvable : refus
 définitif si ``required``, sinon l'enregistrement est créé sans le lien, avec un avertissement
 (un contrôle du banc ne doit jamais être perdu pour un OF mal saisi).
 ``dedupe_on`` : attributs (mappés) qui identifient un contrôle ; avant chaque création, un
@@ -31,8 +35,10 @@ Les modèles ``x_electrical_control`` et ``x_heating_measurement`` ont été cr�
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+from zoneinfo import ZoneInfo
 
 from api.client import OpenProdAPIClient, OpenProdError, OpenProdUnavailable
 from api.models import ControlData, ElectricalControlData, HeatControlData
@@ -63,11 +69,20 @@ class Relation:
     model: str
     search_field: str = 'name'
     required: bool = False
+    # Le banc envoie un nombre (F260900001 côté Keck3) alors qu'Open Prod nomme ses OF "OF260900001".
+    search_template: Optional[str] = None  # ex. "OF{digits}" ; {value} = attribut brut, {digits} = ses chiffres
 
     @classmethod
     def from_dict(cls, raw: Dict[str, Any]) -> 'Relation':
         return cls(field=str(raw['field']), model=str(raw['model']),
-                   search_field=str(raw.get('search_field', 'name')), required=bool(raw.get('required', False)))
+                   search_field=str(raw.get('search_field', 'name')), required=bool(raw.get('required', False)),
+                   search_template=raw.get('search_template'))
+
+    def search_value(self, value: Any) -> Any:
+        if not self.search_template:
+            return value
+        digits = ''.join(ch for ch in str(value) if ch.isdigit())
+        return self.search_template.format(value=value, digits=digits)
 
 
 @dataclass
@@ -77,6 +92,8 @@ class TargetMapping:
     constants: Dict[str, Any] = field(default_factory=dict)
     raw_frame_field: Optional[str] = None
     datetime_format: str = '%Y-%m-%d %H:%M:%S'
+    # Open Prod (Odoo) stocke ses dates en UTC ; le banc horodate en heure locale sans fuseau.
+    datetime_timezone: Optional[str] = None  # ex. "Europe/Paris" : heure du banc convertie en UTC avant envoi
     dedupe_on: List[str] = field(default_factory=list)
     casts: Dict[str, str] = field(default_factory=dict)
     relations: Dict[str, Relation] = field(default_factory=dict)
@@ -90,19 +107,25 @@ class TargetMapping:
         if unknown:
             raise ValueError(f"casts inconnus {unknown} (attendus : {', '.join(CASTS)})")
         relations = {str(k): Relation.from_dict(v) for k, v in raw.get('relations', {}).items()}
+        tz = raw.get('datetime_timezone')
+        if tz:
+            ZoneInfo(tz)  # fuseau inconnu → mapping rejeté au chargement plutôt qu'à chaque envoi
         return cls(
             model=str(raw['model']),
             fields=fields,
             constants=dict(raw.get('constants', {})),
             raw_frame_field=raw.get('raw_frame_field'),
             datetime_format=raw.get('datetime_format', '%Y-%m-%d %H:%M:%S'),
+            datetime_timezone=tz,
             dedupe_on=[a for a in dedupe_on if a in fields],
             casts=casts,
             relations=relations,
         )
 
     def _format(self, attribute: str, value: Any) -> Any:
-        if hasattr(value, 'strftime'):
+        if isinstance(value, datetime):
+            if self.datetime_timezone and value.tzinfo is None:
+                value = value.replace(tzinfo=ZoneInfo(self.datetime_timezone)).astimezone(timezone.utc)
             value = value.strftime(self.datetime_format)
         cast = self.casts.get(attribute)
         return CASTS[cast](value) if cast else value
@@ -120,12 +143,15 @@ class TargetMapping:
         for attribute, target in self.fields.items():
             values[target] = self._format(attribute, self._attribute(control, attribute))
         if self.raw_frame_field and frame is not None:
-            values[self.raw_frame_field] = '\n'.join(' '.join(line) for line in frame)
+            # Le banc termine chaque champ par un NUL, que PostgreSQL (Open Prod) refuse dans un texte.
+            values[self.raw_frame_field] = '\n'.join(
+                ' '.join(item.replace('\x00', '').strip() for item in line) for line in frame)
         return values
 
     def relation_filters(self, control: ControlData) -> List[Tuple[str, Relation, List[List[Any]]]]:
         """Pour chaque relation : (attribut, relation, domaine de recherche de l'enregistrement lié)."""
-        return [(attribute, relation, [[relation.search_field, '=', self._attribute(control, attribute)]])
+        return [(attribute, relation,
+                 [[relation.search_field, '=', relation.search_value(self._attribute(control, attribute))]])
                 for attribute, relation in self.relations.items()]
 
     def dedupe_filters(self, control: ControlData) -> List[List[Any]]:
@@ -150,7 +176,7 @@ def load_mappings(path: Path) -> Dict[str, TargetMapping]:
         if isinstance(item, dict) and item.get('model'):
             try:
                 mappings[kind] = TargetMapping.from_dict(kind, item)
-            except (TypeError, ValueError, AttributeError, KeyError) as e:
+            except (TypeError, ValueError, AttributeError, KeyError, LookupError) as e:
                 logger.error(f"{path}: mapping '{kind}' ignoré ({e})")
                 continue
             if not mappings[kind].dedupe_on:
