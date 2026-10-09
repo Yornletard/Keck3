@@ -140,7 +140,12 @@ avec `read_fields` avant la mise en prod. Copie locale de la doc : `~/Documents/
 
 ## Points ouverts
 
-- **Lien vers l'OF non testé en réel** : `qhse_test` ne contient aucun ordre de fabrication. À tester dès qu'un OF existe.
+- **Lien vers l'OF validé** le 09/10/2026 sur l'OF `OF261000034` créé par Florent : contrôle `F261000034-1` et mesure de
+  chauffe créés avec `x_mo_id` renseigné (vérifié par un `read` filtré sur `x_mo_id`). ⚠️ Sur `qhse_test`, lire un OF avec
+  tous ses champs (ou relire `x_mo_id` d'un contrôle) échoue côté serveur (`column mrp_manufacturingorder.dimension1 does
+  not exist`) : base de test pas à jour d'un module, sans effet sur Keck3 qui ne lit que `name`. À signaler à Objectif-PI.
+- **Menus Open Prod** : Production > « Banc de test électrique » > Contrôle électrique / Mesure de chauffe (ajoutés par Florent
+  le 08/10/2026). À reproduire sur `matfer_production` avec les deux modèles et les droits.
 - **Format réel des noms d'OF en production** : à confirmer par Objectif-PI (« OF + date inversée + séquence ») ; la partie
   numérique doit tenir dans le champ OF du banc (9 chiffres dans les trames archivées).
 - **Droits d'accès** : posés le 30/09/2026 sur le groupe « Administration / Responsable ». Pour la production, prévoir un
